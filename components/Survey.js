@@ -1,470 +1,316 @@
 'use client';
 
 import { useState } from 'react';
+import ProgressBar from './ProgressBar';
+import { calculateNutrition } from '@/lib/calculations';
+import { generateMenu } from '@/lib/menuGenerator';
+import { calculateBudget } from '@/lib/prices';
 
-export default function Results({ data, mode, onReset, onGoHome }) {
-  const [copied, setCopied] = useState(false);
-  const { data: input, nutrition, budget } = data;
+const STEPS = [
+  { id: 'gender', title: 'Ваш пол' },
+  { id: 'metrics', title: 'Базовые данные' },
+  { id: 'goal', title: 'Ваша цель' },
+  { id: 'activity', title: 'Уровень активности' },
+  { id: 'budget', title: 'Бюджет на питание' },
+  { id: 'country', title: 'Страна и валюта' },
+  { id: 'restrictions', title: 'Ограничения по питанию' },
+];
 
-  // Источник истины — props.mode, не data.mode.
-  const isWeekly = mode === 'weekly';
+export default function Survey({ onComplete }) {
+  const [step, setStep] = useState(0);
+  const [data, setData] = useState({
+    gender: '',
+    age: '',
+    height: '',
+    weight: '',
+    goal: '',
+    activity: '',
+    budget: '',
+    country: '',
+    restrictions: '',
+  });
 
-  const handleCopy = async () => {
-    const text = formatResultsAsText(data, mode);
-    try {
-      await navigator.clipboard.writeText(text);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch (e) {
-      window.prompt('Скопируйте текст:', text);
+  const updateField = (field, value) => {
+    setData((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const canProceed = () => {
+    const current = STEPS[step].id;
+    if (current === 'gender') return !!data.gender;
+    if (current === 'metrics') {
+      const age = parseInt(data.age, 10);
+      const height = parseInt(data.height, 10);
+      const weight = parseInt(data.weight, 10);
+      return (
+        age >= 18 && age <= 100 &&
+        height >= 120 && height <= 230 &&
+        weight >= 35 && weight <= 250
+      );
+    }
+    if (current === 'goal') return !!data.goal;
+    if (current === 'activity') return !!data.activity;
+    if (current === 'budget') return !!data.budget;
+    if (current === 'country') return !!data.country;
+    if (current === 'restrictions') return true; // необязательное
+    return false;
+  };
+
+  const handleNext = () => {
+    if (step < STEPS.length - 1) {
+      setStep(step + 1);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    } else {
+      const nutrition = calculateNutrition(data);
+      const menu = generateMenu(data, nutrition);
+      const budget = calculateBudget(menu.shoppingList, data.country);
+      onComplete({ data, nutrition, menu, budget });
     }
   };
 
+  const handleBack = () => {
+    if (step > 0) {
+      setStep(step - 1);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  };
+
+  const currentStep = STEPS[step];
+  const isLastStep = step === STEPS.length - 1;
+
   return (
-    <div className="min-h-screen bg-cream">
-      {/* Шапка */}
-      <header className="border-b border-gray-200 bg-white sticky top-0 z-10">
-        <div className="max-w-3xl mx-auto px-4 py-4 flex items-center justify-between gap-3">
-          <button
-            onClick={onGoHome}
-            className="flex items-center gap-2 text-gray-700 hover:text-sage-700 transition"
-          >
-            <span className="text-lg leading-none">←</span>
-            <div className="w-8 h-8 bg-sage-500 rounded-lg flex items-center justify-center shrink-0">
+    <div className="min-h-screen bg-cream flex flex-col">
+      <header className="border-b border-gray-200 bg-white">
+        <div className="max-w-2xl mx-auto px-4 py-4 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 bg-sage-500 rounded-lg flex items-center justify-center">
               <span className="text-white font-semibold text-sm">N</span>
             </div>
-            <span className="font-semibold text-gray-900 hidden sm:inline">
-              На главную
-            </span>
-          </button>
-          <span className="text-xs text-sage-700 bg-sage-50 px-2.5 py-1 rounded-full font-medium">
-            {isWeekly ? 'План на 7 дней' : 'Быстрый расчёт'}
+            <span className="font-semibold text-gray-900">NutriGuide AI Lite</span>
+          </div>
+          <span className="text-sm text-gray-500">
+            Шаг {step + 1} из {STEPS.length}
           </span>
         </div>
       </header>
 
-      <main className="max-w-3xl mx-auto px-4 py-8 space-y-5 pb-32">
-        <div>
-          <h1 className="text-3xl sm:text-4xl font-semibold text-gray-900">
-            {isWeekly ? 'Ваш план на неделю' : 'Ваш рацион'}
-          </h1>
-          <p className="text-gray-500 mt-2">
-            Персональный расчёт под вашу цель и бюджет
-          </p>
+      <ProgressBar current={step + 1} total={STEPS.length} />
+
+      <main className="flex-1 max-w-2xl mx-auto w-full px-4 py-6 sm:py-8">
+        <div className="bg-white rounded-2xl border border-gray-200 p-6 sm:p-8 shadow-sm">
+          <h2 className="text-2xl font-semibold text-gray-900 mb-6">
+            {currentStep.title}
+          </h2>
+
+          {step === 0 && <GenderStep value={data.gender} onChange={(v) => updateField('gender', v)} />}
+          {step === 1 && <MetricsStep data={data} updateField={updateField} />}
+          {step === 2 && <GoalStep value={data.goal} onChange={(v) => updateField('goal', v)} />}
+          {step === 3 && <ActivityStep value={data.activity} onChange={(v) => updateField('activity', v)} />}
+          {step === 4 && <BudgetStep value={data.budget} onChange={(v) => updateField('budget', v)} />}
+          {step === 5 && <CountryStep value={data.country} onChange={(v) => updateField('country', v)} />}
+          {step === 6 && <RestrictionsStep value={data.restrictions} onChange={(v) => updateField('restrictions', v)} />}
         </div>
 
-        {/* Профиль */}
-        <Card>
-          <CardTitle>Ваши данные</CardTitle>
-          <dl className="grid grid-cols-2 sm:grid-cols-3 gap-4 mt-4">
-            <Stat label="Пол" value={input.gender === 'male' ? 'мужской' : 'женский'} />
-            <Stat label="Возраст" value={`${input.age} лет`} />
-            <Stat label="Рост" value={`${input.height} см`} />
-            <Stat label="Вес" value={`${input.weight} кг`} />
-            <Stat label="Цель" value={goalLabel(input.goal)} />
-            <Stat label="Активность" value={activityLabel(input.activity)} />
-          </dl>
-        </Card>
+        <div className="flex justify-between mt-6">
+          <button
+            onClick={handleBack}
+            disabled={step === 0}
+            className="px-5 py-3 rounded-xl text-gray-600 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition font-medium"
+          >
+            Назад
+          </button>
+          <button
+            onClick={handleNext}
+            disabled={!canProceed()}
+            className="px-6 py-3 rounded-xl bg-sage-500 hover:bg-sage-600 text-white font-medium disabled:opacity-40 disabled:cursor-not-allowed transition shadow-sm"
+          >
+            {isLastStep ? 'Получить рацион' : 'Далее'}
+          </button>
+        </div>
 
-        {/* Расчёты */}
-        <Card>
-          <CardTitle>Расчёты</CardTitle>
-          <div className="grid grid-cols-3 gap-3 mt-4">
-            <BigStat label="BMR" value={nutrition.bmr} unit="ккал" />
-            <BigStat label="TDEE" value={nutrition.tdee} unit="ккал" />
-            <BigStat label="Цель" value={nutrition.target} unit="ккал/день" highlight />
-          </div>
-
-          <div className="grid grid-cols-3 gap-3 mt-3">
-            <Macro label="Белки" value={`${nutrition.protein} г`} />
-            <Macro label="Жиры" value={`${nutrition.fat} г`} />
-            <Macro label="Углеводы" value={`${nutrition.carbs} г`} />
-          </div>
-
-          <p className="text-sm text-gray-600 mt-5 leading-relaxed">
-            <strong className="text-gray-900">BMR</strong> — энергия в покое.{' '}
-            <strong className="text-gray-900">TDEE</strong> — суточный расход с учётом активности.{' '}
-            Целевая калорийность учитывает вашу цель:{' '}
-            <strong className="text-gray-900">{goalDescription(input.goal)}</strong>.
-          </p>
-        </Card>
-
-        {/* Меню — разное для quick и weekly */}
-        {isWeekly ? <WeeklyMenuSection data={data} /> : <DailyMenuSection data={data} />}
-
-        {/* Список покупок */}
-        <Card>
-          <CardTitle>Список покупок на неделю</CardTitle>
-          <p className="text-sm text-gray-500 mt-1">
-            С учётом ротации блюд по дням недели.
-          </p>
-          <div className="space-y-5 mt-5">
-            {Object.entries(data.shoppingList || {}).map(([category, items]) => (
-              <div key={category}>
-                <h3 className="text-xs font-semibold text-sage-700 uppercase tracking-wider mb-2">
-                  {category}
-                </h3>
-                <ul className="space-y-1.5">
-                  {items.map((item, i) => (
-                    <li
-                      key={i}
-                      className="flex justify-between text-gray-700 text-sm py-1 border-b border-gray-50 last:border-0"
-                    >
-                      <span>{item.name}</span>
-                      <span className="text-gray-500 font-medium">{item.amount}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            ))}
-          </div>
-        </Card>
-
-        {/* Стоимость */}
-        <Card>
-          <CardTitle>Примерная стоимость</CardTitle>
-          {budget && budget.hasEstimate ? (
-            <>
-              <div className="text-3xl font-semibold text-sage-700 mt-4">
-                {budget.formatted}
-              </div>
-              <p className="text-sm text-gray-500 mt-1">в неделю</p>
-              <p className="text-sm text-gray-600 mt-3 leading-relaxed">
-                Это оценочная стоимость для супермаркетов. На рынке или при покупке по акциям может быть дешевле, в премиум-магазинах — дороже. Цены зависят от региона и сезона.
-              </p>
-            </>
-          ) : (
-            <p className="text-sm text-gray-600 mt-3 leading-relaxed">
-              Для выбранной страны автоматическая оценка стоимости недоступна. Сориентируйтесь по местным ценам на продукты из списка покупок.
-            </p>
-          )}
-        </Card>
-
-        {/* Прогноз */}
-        <Card>
-          <CardTitle>Прогноз на месяц</CardTitle>
-          <p className="text-gray-700 mt-3 leading-relaxed">{monthForecast(input.goal)}</p>
-        </Card>
-
-        {/* Ограничения */}
-        {input.restrictions && input.restrictions.trim() && (
-          <Card>
-            <CardTitle>Ваши ограничения</CardTitle>
-            <p className="text-gray-700 mt-3 leading-relaxed">{input.restrictions}</p>
-            <p className="text-sm text-gray-500 mt-3 leading-relaxed">
-              В этой версии приложения ограничения сохраняются для вашего удобства, но автоматическая замена продуктов пока не реализована. При необходимости заменяйте блюда вручную.
-            </p>
-          </Card>
-        )}
-
-        {/* Дисклеймер */}
-        <div className="bg-sage-50 border border-sage-100 rounded-2xl p-5 text-sm text-gray-700 leading-relaxed">
-          <strong className="text-sage-700">Важно.</strong>{' '}
+        <p className="text-xs text-gray-500 text-center mt-6 px-2 leading-relaxed">
           NutriGuide AI не является врачом и не заменяет консультацию специалиста.
-          Рекомендации носят информационный характер. При наличии заболеваний согласуйте изменения питания со специалистом.
-        </div>
+          Рекомендации носят информационный характер.
+        </p>
       </main>
-
-      {/* Sticky кнопки внизу */}
-      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 px-4 py-3 shadow-lg">
-        <div className="max-w-3xl mx-auto flex flex-col sm:flex-row gap-2">
-          <button
-            onClick={handleCopy}
-            className="flex-1 px-6 py-3 rounded-xl border-2 border-sage-500 text-sage-700 font-medium hover:bg-sage-50 transition"
-          >
-            {copied ? 'Скопировано' : 'Скопировать результат'}
-          </button>
-          <button
-            onClick={onReset}
-            className="flex-1 px-6 py-3 rounded-xl bg-sage-500 hover:bg-sage-600 text-white font-medium transition shadow-sm"
-          >
-            Сменить рацион
-          </button>
-        </div>
-      </div>
     </div>
   );
 }
 
-// — — — — — Quick mode: меню на один день — — — — —
+// — — — Step components — — —
 
-function DailyMenuSection({ data }) {
-  const dailyMenu = data.dailyMenu || [];
-  const dailyTotals = data.dailyTotals || { kcal: 0, p: 0, f: 0, c: 0 };
-
+function GenderStep({ value, onChange }) {
+  const opts = [
+    { id: 'male', label: 'Мужской' },
+    { id: 'female', label: 'Женский' },
+  ];
   return (
-    <Card>
-      <CardTitle>Меню на день</CardTitle>
-      <p className="text-sm text-gray-500 mt-1">
-        Пример сбалансированного дня. В течение недели блюда чередуются.
-      </p>
-      <div className="space-y-3 mt-5">
-        {dailyMenu.map((meal, i) => (
-          <MealCard key={i} meal={meal} />
-        ))}
-      </div>
-      <div className="mt-5 pt-4 border-t border-gray-100 grid grid-cols-4 gap-2 text-center">
-        <TotalCell label="Калории" value={`${dailyTotals.kcal}`} />
-        <TotalCell label="Белки" value={`${dailyTotals.p} г`} />
-        <TotalCell label="Жиры" value={`${dailyTotals.f} г`} />
-        <TotalCell label="Углеводы" value={`${dailyTotals.c} г`} />
-      </div>
-    </Card>
-  );
-}
-
-// — — — — — Weekly mode: 7 дней с раскрытием — — — — —
-
-function WeeklyMenuSection({ data }) {
-  const [openDay, setOpenDay] = useState(0);
-  const weekDays = data.weekDays || [];
-  const avgTotals = data.avgTotals || { kcal: 0, p: 0, f: 0, c: 0 };
-
-  return (
-    <>
-      <Card>
-        <CardTitle>Среднее по неделе</CardTitle>
-        <div className="grid grid-cols-4 gap-2 mt-4 text-center">
-          <TotalCell label="Калории" value={`${avgTotals.kcal}`} />
-          <TotalCell label="Белки" value={`${avgTotals.p} г`} />
-          <TotalCell label="Жиры" value={`${avgTotals.f} г`} />
-          <TotalCell label="Углеводы" value={`${avgTotals.c} г`} />
-        </div>
-      </Card>
-
-      <Card>
-        <CardTitle>Меню на 7 дней</CardTitle>
-        <p className="text-sm text-gray-500 mt-1">
-          Нажмите на день, чтобы раскрыть его меню.
-        </p>
-        <div className="space-y-2 mt-5">
-          {weekDays.map((day, idx) => (
-            <DayAccordion
-              key={day.dayNumber || idx}
-              day={day}
-              isOpen={openDay === idx}
-              onToggle={() => setOpenDay(openDay === idx ? -1 : idx)}
-            />
-          ))}
-        </div>
-      </Card>
-    </>
-  );
-}
-
-function DayAccordion({ day, isOpen, onToggle }) {
-  return (
-    <div className="border border-gray-200 rounded-xl overflow-hidden">
-      <button
-        onClick={onToggle}
-        className={`w-full text-left px-4 py-3 flex items-center justify-between gap-3 transition ${
-          isOpen ? 'bg-sage-50' : 'bg-white hover:bg-gray-50'
-        }`}
-      >
-        <div className="flex items-center gap-3 min-w-0">
-          <div className="w-9 h-9 rounded-lg bg-sage-500 text-white font-semibold text-sm flex items-center justify-center shrink-0">
-            {day.dayName}
-          </div>
-          <div className="min-w-0">
-            <div className="font-medium text-gray-900">День {day.dayNumber}</div>
-            <div className="text-xs text-gray-500 truncate">
-              {day.totals.kcal} ккал · Б {day.totals.p} / Ж {day.totals.f} / У {day.totals.c}
-            </div>
-          </div>
-        </div>
-        <span
-          className={`text-gray-400 transition-transform shrink-0 ${
-            isOpen ? 'rotate-180' : ''
+    <div className="grid grid-cols-2 gap-3">
+      {opts.map((o) => (
+        <button
+          key={o.id}
+          onClick={() => onChange(o.id)}
+          className={`py-4 px-6 rounded-xl border-2 font-medium transition ${
+            value === o.id
+              ? 'border-sage-500 bg-sage-50 text-sage-700'
+              : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300'
           }`}
         >
-          ▾
-        </span>
-      </button>
-      {isOpen && (
-        <div className="p-4 space-y-3 bg-white border-t border-gray-100">
-          {day.meals.map((meal, i) => (
-            <MealCard key={i} meal={meal} />
-          ))}
-        </div>
-      )}
+          {o.label}
+        </button>
+      ))}
     </div>
   );
 }
 
-// — — — — — Общие компоненты — — — — —
-
-function Card({ children }) {
+function MetricsStep({ data, updateField }) {
   return (
-    <div className="bg-white rounded-2xl border border-gray-200 p-6 sm:p-7 shadow-sm">
-      {children}
+    <div className="space-y-4">
+      <NumberField
+        label="Возраст (полных лет)"
+        value={data.age}
+        onChange={(v) => updateField('age', v)}
+        placeholder="например, 35"
+        min={18}
+        max={100}
+      />
+      <NumberField
+        label="Рост (см)"
+        value={data.height}
+        onChange={(v) => updateField('height', v)}
+        placeholder="например, 175"
+        min={120}
+        max={230}
+      />
+      <NumberField
+        label="Вес (кг)"
+        value={data.weight}
+        onChange={(v) => updateField('weight', v)}
+        placeholder="например, 80"
+        min={35}
+        max={250}
+      />
     </div>
   );
 }
 
-function CardTitle({ children }) {
-  return <h2 className="text-xl font-semibold text-gray-900">{children}</h2>;
-}
-
-function Stat({ label, value }) {
+function NumberField({ label, value, onChange, placeholder, min, max }) {
   return (
     <div>
-      <dt className="text-xs text-gray-500 uppercase tracking-wider">{label}</dt>
-      <dd className="text-base text-gray-900 mt-1">{value}</dd>
+      <label className="block text-sm font-medium text-gray-700 mb-2">{label}</label>
+      <input
+        type="number"
+        inputMode="numeric"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        min={min}
+        max={max}
+        className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-sage-500 focus:outline-none focus:ring-2 focus:ring-sage-100 transition"
+      />
     </div>
   );
 }
 
-function BigStat({ label, value, unit, highlight }) {
+function GoalStep({ value, onChange }) {
+  const goals = [
+    { id: 'lose', label: 'Похудеть', desc: 'Снижение веса с дефицитом калорий' },
+    { id: 'maintain', label: 'Удержать вес', desc: 'Поддерживать текущий вес' },
+    { id: 'gain', label: 'Набрать массу', desc: 'Набор мышечной массы с профицитом' },
+  ];
   return (
-    <div
-      className={`rounded-xl p-3 sm:p-4 ${
-        highlight ? 'bg-sage-50 border border-sage-200' : 'bg-gray-50'
+    <div className="space-y-3">
+      {goals.map((g) => (
+        <OptionCard key={g.id} active={value === g.id} onClick={() => onChange(g.id)}>
+          <div className="font-medium text-gray-900">{g.label}</div>
+          <div className="text-sm text-gray-500 mt-1">{g.desc}</div>
+        </OptionCard>
+      ))}
+    </div>
+  );
+}
+
+function ActivityStep({ value, onChange }) {
+  const levels = [
+    { id: 'sedentary', label: 'Сидячая', desc: 'Офисная работа, без тренировок' },
+    { id: 'light', label: 'Лёгкая', desc: '1–3 тренировки в неделю или регулярные прогулки' },
+    { id: 'moderate', label: 'Умеренная', desc: '3–5 тренировок в неделю' },
+    { id: 'high', label: 'Высокая', desc: '6–7 тренировок в неделю или физическая работа' },
+  ];
+  return (
+    <div className="space-y-3">
+      {levels.map((l) => (
+        <OptionCard key={l.id} active={value === l.id} onClick={() => onChange(l.id)}>
+          <div className="font-medium text-gray-900">{l.label}</div>
+          <div className="text-sm text-gray-500 mt-1">{l.desc}</div>
+        </OptionCard>
+      ))}
+    </div>
+  );
+}
+
+function BudgetStep({ value, onChange }) {
+  const budgets = [
+    { id: 'econom', label: 'Эконом', desc: 'Простые доступные продукты' },
+    { id: 'standard', label: 'Стандарт', desc: 'Обычный набор без излишеств' },
+    { id: 'comfort', label: 'Комфорт', desc: 'Разнообразное меню без жёстких ограничений' },
+  ];
+  return (
+    <div className="space-y-3">
+      {budgets.map((b) => (
+        <OptionCard key={b.id} active={value === b.id} onClick={() => onChange(b.id)}>
+          <div className="font-medium text-gray-900">{b.label}</div>
+          <div className="text-sm text-gray-500 mt-1">{b.desc}</div>
+        </OptionCard>
+      ))}
+    </div>
+  );
+}
+
+function CountryStep({ value, onChange }) {
+  const countries = [
+    { id: 'kz', label: 'Казахстан', currency: 'тенге' },
+    { id: 'ru', label: 'Россия', currency: 'рубли' },
+    { id: 'other', label: 'Другое', currency: 'оценка стоимости недоступна' },
+  ];
+  return (
+    <div className="space-y-3">
+      {countries.map((c) => (
+        <OptionCard key={c.id} active={value === c.id} onClick={() => onChange(c.id)}>
+          <div className="font-medium text-gray-900">{c.label}</div>
+          <div className="text-sm text-gray-500 mt-1">Валюта: {c.currency}</div>
+        </OptionCard>
+      ))}
+    </div>
+  );
+}
+
+function RestrictionsStep({ value, onChange }) {
+  return (
+    <div>
+      <p className="text-sm text-gray-500 mb-3 leading-relaxed">
+        Укажите аллергии или продукты, которые вы не едите. Этот пункт необязательный — можно пропустить.
+      </p>
+      <textarea
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder="Например: не ем рыбу, аллергия на орехи"
+        className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-sage-500 focus:outline-none focus:ring-2 focus:ring-sage-100 transition min-h-[120px] resize-y"
+      />
+    </div>
+  );
+}
+
+function OptionCard({ active, onClick, children }) {
+  return (
+    <button
+      onClick={onClick}
+      className={`w-full text-left p-4 rounded-xl border-2 transition ${
+        active
+          ? 'border-sage-500 bg-sage-50'
+          : 'border-gray-200 bg-white hover:border-gray-300'
       }`}
     >
-      <div className="text-xs uppercase tracking-wider text-gray-500">{label}</div>
-      <div
-        className={`text-xl sm:text-2xl font-semibold mt-1 ${
-          highlight ? 'text-sage-700' : 'text-gray-900'
-        }`}
-      >
-        {value}
-      </div>
-      {unit && <div className="text-xs text-gray-500 mt-0.5">{unit}</div>}
-    </div>
+      {children}
+    </button>
   );
-}
-
-function Macro({ label, value }) {
-  return (
-    <div className="bg-gray-50 rounded-xl p-3 text-center">
-      <div className="text-xs uppercase tracking-wider text-gray-500">{label}</div>
-      <div className="text-lg font-semibold text-gray-900 mt-1">{value}</div>
-    </div>
-  );
-}
-
-function MealCard({ meal }) {
-  return (
-    <div className="border border-gray-100 rounded-xl p-4">
-      <div className="flex items-baseline justify-between gap-2 mb-1">
-        <div className="text-xs text-sage-700 font-semibold uppercase tracking-wider">
-          {meal.slot}
-        </div>
-        <span className="text-sm text-gray-700 font-medium">{meal.kcal} ккал</span>
-      </div>
-      <h3 className="font-medium text-gray-900 mb-3">{meal.name}</h3>
-      <ul className="text-sm text-gray-700 space-y-1">
-        {meal.ingredients.map((ing, i) => (
-          <li key={i}>— {ing}</li>
-        ))}
-      </ul>
-      <div className="text-xs text-gray-500 mt-3 flex gap-3">
-        <span>Б: {meal.p} г</span>
-        <span>Ж: {meal.f} г</span>
-        <span>У: {meal.c} г</span>
-      </div>
-    </div>
-  );
-}
-
-function TotalCell({ label, value }) {
-  return (
-    <div>
-      <div className="text-xs text-gray-500 uppercase tracking-wider">{label}</div>
-      <div className="text-base font-semibold text-gray-900 mt-1">{value}</div>
-    </div>
-  );
-}
-
-// — — — — — Хелперы — — — — —
-
-function goalLabel(goal) {
-  return goal === 'lose' ? 'похудение' : goal === 'gain' ? 'набор массы' : 'удержание веса';
-}
-
-function activityLabel(act) {
-  return (
-    {
-      sedentary: 'сидячая',
-      light: 'лёгкая',
-      moderate: 'умеренная',
-      high: 'высокая',
-    }[act] || act
-  );
-}
-
-function goalDescription(goal) {
-  if (goal === 'lose') return 'дефицит 18% для устойчивого снижения веса';
-  if (goal === 'gain') return 'профицит 12% для набора мышц без лишнего жира';
-  return 'поддерживающая калорийность для удержания веса';
-}
-
-function monthForecast(goal) {
-  if (goal === 'lose') {
-    return 'При соблюдении плана ожидаемое снижение веса — 1,5–2 кг за месяц (около 0,4 кг в неделю). В первую неделю может быть больше за счёт выхода лишней воды — это нормально. Это устойчивый и безопасный темп.';
-  }
-  if (goal === 'gain') {
-    return 'При соблюдении плана и регулярных силовых тренировках ожидаемый прирост — 0,8–1,2 кг за месяц. Большая часть прибавки должна приходиться на мышечную массу, минимум — на жировую.';
-  }
-  return 'Вес должен стабилизироваться на текущем уровне. Возможны естественные колебания ±0,5 кг за счёт воды, состояния ЖКТ и циклов организма — это нормально.';
-}
-
-function formatResultsAsText(data, mode) {
-  const { data: input, nutrition, budget } = data;
-  const isWeekly = mode === 'weekly';
-
-  let text = `NutriGuide AI Lite — ${isWeekly ? 'план на 7 дней' : 'ваш рацион'}\n\n`;
-  text += `Пол: ${input.gender === 'male' ? 'мужской' : 'женский'}\n`;
-  text += `Возраст: ${input.age} лет\n`;
-  text += `Рост: ${input.height} см\n`;
-  text += `Вес: ${input.weight} кг\n`;
-  text += `Цель: ${goalLabel(input.goal)}\n`;
-  text += `Активность: ${activityLabel(input.activity)}\n\n`;
-
-  text += `Расчёты:\n`;
-  text += `BMR: ${nutrition.bmr} ккал\n`;
-  text += `TDEE: ${nutrition.tdee} ккал\n`;
-  text += `Целевая калорийность: ${nutrition.target} ккал/день\n`;
-  text += `Белки: ${nutrition.protein} г\n`;
-  text += `Жиры: ${nutrition.fat} г\n`;
-  text += `Углеводы: ${nutrition.carbs} г\n\n`;
-
-  if (isWeekly && data.weekDays) {
-    text += `Меню на 7 дней:\n`;
-    data.weekDays.forEach((day) => {
-      text += `\n— День ${day.dayNumber} (${day.dayName}) — ${day.totals.kcal} ккал —\n`;
-      day.meals.forEach((m) => {
-        text += `\n${m.slot}: ${m.name} (${m.kcal} ккал)\n`;
-        m.ingredients.forEach((ing) => (text += `  — ${ing}\n`));
-      });
-    });
-    if (data.avgTotals) {
-      text += `\nСреднее за день: ${data.avgTotals.kcal} ккал | Б:${data.avgTotals.p}/Ж:${data.avgTotals.f}/У:${data.avgTotals.c}\n\n`;
-    }
-  } else if (data.dailyMenu) {
-    text += `Меню на день:\n`;
-    data.dailyMenu.forEach((m) => {
-      text += `\n${m.slot} — ${m.name} (${m.kcal} ккал | Б:${m.p}/Ж:${m.f}/У:${m.c})\n`;
-      m.ingredients.forEach((ing) => (text += `  — ${ing}\n`));
-    });
-    if (data.dailyTotals) {
-      text += `\nИтог за день: ${data.dailyTotals.kcal} ккал | Б:${data.dailyTotals.p}/Ж:${data.dailyTotals.f}/У:${data.dailyTotals.c}\n\n`;
-    }
-  }
-
-  if (data.shoppingList) {
-    text += `Список покупок на неделю:\n`;
-    Object.entries(data.shoppingList).forEach(([cat, items]) => {
-      text += `\n${cat}:\n`;
-      items.forEach((i) => (text += `  — ${i.name}: ${i.amount}\n`));
-    });
-  }
-
-  if (budget && budget.hasEstimate) {
-    text += `\nПримерная стоимость: ${budget.formatted} в неделю\n`;
-  }
-  text += `\nПрогноз на месяц: ${monthForecast(input.goal)}\n`;
-  text += `\n— — —\nNutriGuide AI не является врачом и не заменяет консультацию специалиста.`;
-
-  return text;
 }
