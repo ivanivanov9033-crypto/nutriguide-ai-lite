@@ -2,36 +2,52 @@
 
 import { useState } from 'react';
 
-export default function Results({ data, onReset }) {
+export default function Results({ data, mode, onReset, onGoHome }) {
   const [copied, setCopied] = useState(false);
-  const { data: input, nutrition, menu, budget } = data;
+  const { data: input, nutrition, budget } = data;
+
+  // Источник истины — props.mode, не data.mode.
+  const isWeekly = mode === 'weekly';
 
   const handleCopy = async () => {
-    const text = formatResultsAsText(data);
+    const text = formatResultsAsText(data, mode);
     try {
       await navigator.clipboard.writeText(text);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch (e) {
-      // Fallback: открытие prompt с текстом
       window.prompt('Скопируйте текст:', text);
     }
   };
 
   return (
     <div className="min-h-screen bg-cream">
+      {/* Шапка */}
       <header className="border-b border-gray-200 bg-white sticky top-0 z-10">
-        <div className="max-w-3xl mx-auto px-4 py-4 flex items-center gap-2">
-          <div className="w-8 h-8 bg-sage-500 rounded-lg flex items-center justify-center">
-            <span className="text-white font-semibold text-sm">N</span>
-          </div>
-          <span className="font-semibold text-gray-900">NutriGuide AI Lite</span>
+        <div className="max-w-3xl mx-auto px-4 py-4 flex items-center justify-between gap-3">
+          <button
+            onClick={onGoHome}
+            className="flex items-center gap-2 text-gray-700 hover:text-sage-700 transition"
+          >
+            <span className="text-lg leading-none">←</span>
+            <div className="w-8 h-8 bg-sage-500 rounded-lg flex items-center justify-center shrink-0">
+              <span className="text-white font-semibold text-sm">N</span>
+            </div>
+            <span className="font-semibold text-gray-900 hidden sm:inline">
+              На главную
+            </span>
+          </button>
+          <span className="text-xs text-sage-700 bg-sage-50 px-2.5 py-1 rounded-full font-medium">
+            {isWeekly ? 'План на 7 дней' : 'Быстрый расчёт'}
+          </span>
         </div>
       </header>
 
       <main className="max-w-3xl mx-auto px-4 py-8 space-y-5 pb-32">
         <div>
-          <h1 className="text-3xl sm:text-4xl font-semibold text-gray-900">Ваш рацион</h1>
+          <h1 className="text-3xl sm:text-4xl font-semibold text-gray-900">
+            {isWeekly ? 'Ваш план на неделю' : 'Ваш рацион'}
+          </h1>
           <p className="text-gray-500 mt-2">
             Персональный расчёт под вашу цель и бюджет
           </p>
@@ -56,12 +72,7 @@ export default function Results({ data, onReset }) {
           <div className="grid grid-cols-3 gap-3 mt-4">
             <BigStat label="BMR" value={nutrition.bmr} unit="ккал" />
             <BigStat label="TDEE" value={nutrition.tdee} unit="ккал" />
-            <BigStat
-              label="Цель"
-              value={nutrition.target}
-              unit="ккал/день"
-              highlight
-            />
+            <BigStat label="Цель" value={nutrition.target} unit="ккал/день" highlight />
           </div>
 
           <div className="grid grid-cols-3 gap-3 mt-3">
@@ -71,30 +82,15 @@ export default function Results({ data, onReset }) {
           </div>
 
           <p className="text-sm text-gray-600 mt-5 leading-relaxed">
-            <strong className="text-gray-900">BMR</strong> — энергия, которую тратит ваш организм в покое.{' '}
+            <strong className="text-gray-900">BMR</strong> — энергия в покое.{' '}
             <strong className="text-gray-900">TDEE</strong> — суточный расход с учётом активности.{' '}
-            Целевая калорийность учитывает вашу цель: <strong className="text-gray-900">{goalDescription(input.goal)}</strong>.
+            Целевая калорийность учитывает вашу цель:{' '}
+            <strong className="text-gray-900">{goalDescription(input.goal)}</strong>.
           </p>
         </Card>
 
-        {/* Меню на день */}
-        <Card>
-          <CardTitle>Меню на день</CardTitle>
-          <p className="text-sm text-gray-500 mt-1">
-            Пример сбалансированного дня. В течение недели блюда чередуются.
-          </p>
-          <div className="space-y-3 mt-5">
-            {menu.dailyMenu.map((meal, i) => (
-              <MealCard key={i} meal={meal} />
-            ))}
-          </div>
-          <div className="mt-5 pt-4 border-t border-gray-100 grid grid-cols-4 gap-2 text-center">
-            <TotalCell label="Калории" value={`${menu.dailyTotals.kcal}`} />
-            <TotalCell label="Белки" value={`${menu.dailyTotals.p} г`} />
-            <TotalCell label="Жиры" value={`${menu.dailyTotals.f} г`} />
-            <TotalCell label="Углеводы" value={`${menu.dailyTotals.c} г`} />
-          </div>
-        </Card>
+        {/* Меню — разное для quick и weekly */}
+        {isWeekly ? <WeeklyMenuSection data={data} /> : <DailyMenuSection data={data} />}
 
         {/* Список покупок */}
         <Card>
@@ -103,7 +99,7 @@ export default function Results({ data, onReset }) {
             С учётом ротации блюд по дням недели.
           </p>
           <div className="space-y-5 mt-5">
-            {Object.entries(menu.shoppingList).map(([category, items]) => (
+            {Object.entries(data.shoppingList || {}).map(([category, items]) => (
               <div key={category}>
                 <h3 className="text-xs font-semibold text-sage-700 uppercase tracking-wider mb-2">
                   {category}
@@ -127,7 +123,7 @@ export default function Results({ data, onReset }) {
         {/* Стоимость */}
         <Card>
           <CardTitle>Примерная стоимость</CardTitle>
-          {budget.hasEstimate ? (
+          {budget && budget.hasEstimate ? (
             <>
               <div className="text-3xl font-semibold text-sage-700 mt-4">
                 {budget.formatted}
@@ -147,12 +143,10 @@ export default function Results({ data, onReset }) {
         {/* Прогноз */}
         <Card>
           <CardTitle>Прогноз на месяц</CardTitle>
-          <p className="text-gray-700 mt-3 leading-relaxed">
-            {monthForecast(input.goal)}
-          </p>
+          <p className="text-gray-700 mt-3 leading-relaxed">{monthForecast(input.goal)}</p>
         </Card>
 
-        {/* Ограничения, если были */}
+        {/* Ограничения */}
         {input.restrictions && input.restrictions.trim() && (
           <Card>
             <CardTitle>Ваши ограничения</CardTitle>
@@ -184,7 +178,7 @@ export default function Results({ data, onReset }) {
             onClick={onReset}
             className="flex-1 px-6 py-3 rounded-xl bg-sage-500 hover:bg-sage-600 text-white font-medium transition shadow-sm"
           >
-            Составить новый рацион
+            Сменить рацион
           </button>
         </div>
       </div>
@@ -192,7 +186,112 @@ export default function Results({ data, onReset }) {
   );
 }
 
-// — — — Внутренние компоненты — — —
+// — — — — — Quick mode: меню на один день — — — — —
+
+function DailyMenuSection({ data }) {
+  const dailyMenu = data.dailyMenu || [];
+  const dailyTotals = data.dailyTotals || { kcal: 0, p: 0, f: 0, c: 0 };
+
+  return (
+    <Card>
+      <CardTitle>Меню на день</CardTitle>
+      <p className="text-sm text-gray-500 mt-1">
+        Пример сбалансированного дня. В течение недели блюда чередуются.
+      </p>
+      <div className="space-y-3 mt-5">
+        {dailyMenu.map((meal, i) => (
+          <MealCard key={i} meal={meal} />
+        ))}
+      </div>
+      <div className="mt-5 pt-4 border-t border-gray-100 grid grid-cols-4 gap-2 text-center">
+        <TotalCell label="Калории" value={`${dailyTotals.kcal}`} />
+        <TotalCell label="Белки" value={`${dailyTotals.p} г`} />
+        <TotalCell label="Жиры" value={`${dailyTotals.f} г`} />
+        <TotalCell label="Углеводы" value={`${dailyTotals.c} г`} />
+      </div>
+    </Card>
+  );
+}
+
+// — — — — — Weekly mode: 7 дней с раскрытием — — — — —
+
+function WeeklyMenuSection({ data }) {
+  const [openDay, setOpenDay] = useState(0);
+  const weekDays = data.weekDays || [];
+  const avgTotals = data.avgTotals || { kcal: 0, p: 0, f: 0, c: 0 };
+
+  return (
+    <>
+      <Card>
+        <CardTitle>Среднее по неделе</CardTitle>
+        <div className="grid grid-cols-4 gap-2 mt-4 text-center">
+          <TotalCell label="Калории" value={`${avgTotals.kcal}`} />
+          <TotalCell label="Белки" value={`${avgTotals.p} г`} />
+          <TotalCell label="Жиры" value={`${avgTotals.f} г`} />
+          <TotalCell label="Углеводы" value={`${avgTotals.c} г`} />
+        </div>
+      </Card>
+
+      <Card>
+        <CardTitle>Меню на 7 дней</CardTitle>
+        <p className="text-sm text-gray-500 mt-1">
+          Нажмите на день, чтобы раскрыть его меню.
+        </p>
+        <div className="space-y-2 mt-5">
+          {weekDays.map((day, idx) => (
+            <DayAccordion
+              key={day.dayNumber || idx}
+              day={day}
+              isOpen={openDay === idx}
+              onToggle={() => setOpenDay(openDay === idx ? -1 : idx)}
+            />
+          ))}
+        </div>
+      </Card>
+    </>
+  );
+}
+
+function DayAccordion({ day, isOpen, onToggle }) {
+  return (
+    <div className="border border-gray-200 rounded-xl overflow-hidden">
+      <button
+        onClick={onToggle}
+        className={`w-full text-left px-4 py-3 flex items-center justify-between gap-3 transition ${
+          isOpen ? 'bg-sage-50' : 'bg-white hover:bg-gray-50'
+        }`}
+      >
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="w-9 h-9 rounded-lg bg-sage-500 text-white font-semibold text-sm flex items-center justify-center shrink-0">
+            {day.dayName}
+          </div>
+          <div className="min-w-0">
+            <div className="font-medium text-gray-900">День {day.dayNumber}</div>
+            <div className="text-xs text-gray-500 truncate">
+              {day.totals.kcal} ккал · Б {day.totals.p} / Ж {day.totals.f} / У {day.totals.c}
+            </div>
+          </div>
+        </div>
+        <span
+          className={`text-gray-400 transition-transform shrink-0 ${
+            isOpen ? 'rotate-180' : ''
+          }`}
+        >
+          ▾
+        </span>
+      </button>
+      {isOpen && (
+        <div className="p-4 space-y-3 bg-white border-t border-gray-100">
+          {day.meals.map((meal, i) => (
+            <MealCard key={i} meal={meal} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// — — — — — Общие компоненты — — — — —
 
 function Card({ children }) {
   return (
@@ -277,7 +376,7 @@ function TotalCell({ label, value }) {
   );
 }
 
-// — — — Helpers — — —
+// — — — — — Хелперы — — — — —
 
 function goalLabel(goal) {
   return goal === 'lose' ? 'похудение' : goal === 'gain' ? 'набор массы' : 'удержание веса';
@@ -310,9 +409,11 @@ function monthForecast(goal) {
   return 'Вес должен стабилизироваться на текущем уровне. Возможны естественные колебания ±0,5 кг за счёт воды, состояния ЖКТ и циклов организма — это нормально.';
 }
 
-function formatResultsAsText(data) {
-  const { data: input, nutrition, menu, budget } = data;
-  let text = 'NutriGuide AI Lite — ваш рацион\n\n';
+function formatResultsAsText(data, mode) {
+  const { data: input, nutrition, budget } = data;
+  const isWeekly = mode === 'weekly';
+
+  let text = `NutriGuide AI Lite — ${isWeekly ? 'план на 7 дней' : 'ваш рацион'}\n\n`;
   text += `Пол: ${input.gender === 'male' ? 'мужской' : 'женский'}\n`;
   text += `Возраст: ${input.age} лет\n`;
   text += `Рост: ${input.height} см\n`;
@@ -328,20 +429,38 @@ function formatResultsAsText(data) {
   text += `Жиры: ${nutrition.fat} г\n`;
   text += `Углеводы: ${nutrition.carbs} г\n\n`;
 
-  text += `Меню на день:\n`;
-  menu.dailyMenu.forEach((m) => {
-    text += `\n${m.slot} — ${m.name} (${m.kcal} ккал | Б:${m.p}/Ж:${m.f}/У:${m.c})\n`;
-    m.ingredients.forEach((i) => (text += `  — ${i}\n`));
-  });
-  text += `\nИтог за день: ${menu.dailyTotals.kcal} ккал | Б:${menu.dailyTotals.p}/Ж:${menu.dailyTotals.f}/У:${menu.dailyTotals.c}\n\n`;
+  if (isWeekly && data.weekDays) {
+    text += `Меню на 7 дней:\n`;
+    data.weekDays.forEach((day) => {
+      text += `\n— День ${day.dayNumber} (${day.dayName}) — ${day.totals.kcal} ккал —\n`;
+      day.meals.forEach((m) => {
+        text += `\n${m.slot}: ${m.name} (${m.kcal} ккал)\n`;
+        m.ingredients.forEach((ing) => (text += `  — ${ing}\n`));
+      });
+    });
+    if (data.avgTotals) {
+      text += `\nСреднее за день: ${data.avgTotals.kcal} ккал | Б:${data.avgTotals.p}/Ж:${data.avgTotals.f}/У:${data.avgTotals.c}\n\n`;
+    }
+  } else if (data.dailyMenu) {
+    text += `Меню на день:\n`;
+    data.dailyMenu.forEach((m) => {
+      text += `\n${m.slot} — ${m.name} (${m.kcal} ккал | Б:${m.p}/Ж:${m.f}/У:${m.c})\n`;
+      m.ingredients.forEach((ing) => (text += `  — ${ing}\n`));
+    });
+    if (data.dailyTotals) {
+      text += `\nИтог за день: ${data.dailyTotals.kcal} ккал | Б:${data.dailyTotals.p}/Ж:${data.dailyTotals.f}/У:${data.dailyTotals.c}\n\n`;
+    }
+  }
 
-  text += `Список покупок на неделю:\n`;
-  Object.entries(menu.shoppingList).forEach(([cat, items]) => {
-    text += `\n${cat}:\n`;
-    items.forEach((i) => (text += `  — ${i.name}: ${i.amount}\n`));
-  });
+  if (data.shoppingList) {
+    text += `Список покупок на неделю:\n`;
+    Object.entries(data.shoppingList).forEach(([cat, items]) => {
+      text += `\n${cat}:\n`;
+      items.forEach((i) => (text += `  — ${i.name}: ${i.amount}\n`));
+    });
+  }
 
-  if (budget.hasEstimate) {
+  if (budget && budget.hasEstimate) {
     text += `\nПримерная стоимость: ${budget.formatted} в неделю\n`;
   }
   text += `\nПрогноз на месяц: ${monthForecast(input.goal)}\n`;
