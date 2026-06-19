@@ -8,7 +8,7 @@ import { calculateBudget } from '@/lib/prices';
 
 const STEPS = [
   { id: 'gender', title: 'Ваш пол' },
-  { id: 'metrics', title: 'Базовые данные' },а
+  { id: 'metrics', title: 'Базовые данные' },
   { id: 'goal', title: 'Ваша цель' },
   { id: 'activity', title: 'Уровень активности' },
   { id: 'budget', title: 'Бюджет на питание' },
