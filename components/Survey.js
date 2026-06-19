@@ -16,6 +16,11 @@ const STEPS = [
   { id: 'restrictions', title: 'Ограничения по питанию' },
 ];
 
+const MODE_LABELS = {
+  quick: 'Быстрый расчёт',
+  weekly: 'План на 7 дней',
+};
+
 export default function Survey({ mode = 'quick', onComplete, onBack }) {
   const [step, setStep] = useState(0);
   const [data, setData] = useState({
@@ -51,56 +56,65 @@ export default function Survey({ mode = 'quick', onComplete, onBack }) {
     if (current === 'activity') return !!data.activity;
     if (current === 'budget') return !!data.budget;
     if (current === 'country') return !!data.country;
-    if (current === 'restrictions') return true; // необязательное
+    if (current === 'restrictions') return true;
     return false;
   };
 
   const handleNext = () => {
     if (step < STEPS.length - 1) {
       setStep(step + 1);
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-    } else {
-   const nutrition = calculateNutrition(data);
+      return;
+    }
 
-const menu =
-  mode === 'weekly'
-    ? generateWeeklyMenu(data, nutrition)
-    : generateMenu(data, nutrition);
+    const nutrition = calculateNutrition(data);
+    const menuResult = mode === 'weekly'
+      ? generateWeeklyMenu(data, nutrition)
+      : generateMenu(data, nutrition);
+    const budget = calculateBudget(menuResult.shoppingList, data.country);
 
-const budget = calculateBudget(menu.shoppingList, data.country);
-
-onComplete({
-  data,
-  nutrition,
-  ...menu,
-  budget
-}); 
-    
- 
+    onComplete({
+      data,
+      nutrition,
+      ...menuResult,
+      budget,
+    });
+  };
 
   const handleBack = () => {
     if (step > 0) {
       setStep(step - 1);
-      window.scrollTo({ top: 0, behavior: 'smooth' });
+    } else if (typeof onBack === 'function') {
+      onBack();
     }
   };
 
   const currentStep = STEPS[step];
   const isLastStep = step === STEPS.length - 1;
+  const modeLabel = MODE_LABELS[mode] || MODE_LABELS.quick;
 
   return (
     <div className="min-h-screen bg-cream flex flex-col">
       <header className="border-b border-gray-200 bg-white">
         <div className="max-w-2xl mx-auto px-4 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-2">
+          <button
+            onClick={onBack}
+            className="flex items-center gap-2 hover:opacity-80 transition"
+          >
             <div className="w-8 h-8 bg-sage-500 rounded-lg flex items-center justify-center">
               <span className="text-white font-semibold text-sm">N</span>
             </div>
-            <span className="font-semibold text-gray-900">NutriGuide AI Lite</span>
+            <span className="font-semibold text-gray-900 hidden sm:inline">
+              NutriGuide AI Lite
+            </span>
+          </button>
+          <div className="flex items-center gap-3">
+            <span className="text-xs sm:text-sm text-sage-700 bg-sage-50 px-2.5 py-1 rounded-full font-medium">
+              {modeLabel}
+            </span>
+            <span className="text-sm text-gray-500">
+              {step + 1}/{STEPS.length}
+            </span>
           </div>
-          <span className="text-sm text-gray-500">
-            Шаг {step + 1} из {STEPS.length}
-          </span>
         </div>
       </header>
 
@@ -124,17 +138,20 @@ onComplete({
         <div className="flex justify-between mt-6">
           <button
             onClick={handleBack}
-            disabled={step === 0}
-            className="px-5 py-3 rounded-xl text-gray-600 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition font-medium"
+            className="px-5 py-3 rounded-xl text-gray-600 hover:bg-gray-100 transition font-medium"
           >
-            Назад
+            {step === 0 ? '← На главную' : 'Назад'}
           </button>
           <button
             onClick={handleNext}
             disabled={!canProceed()}
             className="px-6 py-3 rounded-xl bg-sage-500 hover:bg-sage-600 text-white font-medium disabled:opacity-40 disabled:cursor-not-allowed transition shadow-sm"
           >
-            {isLastStep ? 'Получить рацион' : 'Далее'}
+            {isLastStep
+              ? mode === 'weekly'
+                ? 'Получить план на 7 дней'
+                : 'Получить рацион'
+              : 'Далее'}
           </button>
         </div>
 
@@ -146,8 +163,6 @@ onComplete({
     </div>
   );
 }
-
-// — — — Step components — — —
 
 function GenderStep({ value, onChange }) {
   const opts = [
@@ -325,4 +340,4 @@ function OptionCard({ active, onClick, children }) {
     </button>
   );
 }
-}
+
