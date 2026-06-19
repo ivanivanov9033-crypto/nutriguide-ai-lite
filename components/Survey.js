@@ -3,12 +3,12 @@
 import { useState } from 'react';
 import ProgressBar from './ProgressBar';
 import { calculateNutrition } from '@/lib/calculations';
-import { generateMenu } from '@/lib/menuGenerator';
+import { generateMenu, generateWeeklyMenu } from '@/lib/menuGenerator';
 import { calculateBudget } from '@/lib/prices';
 
 const STEPS = [
   { id: 'gender', title: 'Ваш пол' },
-  { id: 'metrics', title: 'Базовые данные' },
+  { id: 'metrics', title: 'Базовые данные' },а
   { id: 'goal', title: 'Ваша цель' },
   { id: 'activity', title: 'Уровень активности' },
   { id: 'budget', title: 'Бюджет на питание' },
@@ -16,7 +16,7 @@ const STEPS = [
   { id: 'restrictions', title: 'Ограничения по питанию' },
 ];
 
-export default function Survey({ onComplete }) {
+export default function Survey({ mode = 'quick', onComplete, onBack }) {
   const [step, setStep] = useState(0);
   const [data, setData] = useState({
     gender: '',
@@ -60,12 +60,23 @@ export default function Survey({ onComplete }) {
       setStep(step + 1);
       window.scrollTo({ top: 0, behavior: 'smooth' });
     } else {
-      const nutrition = calculateNutrition(data);
-      const menu = generateMenu(data, nutrition);
-      const budget = calculateBudget(menu.shoppingList, data.country);
-      onComplete({ data, nutrition, menu, budget });
-    }
-  };
+   const nutrition = calculateNutrition(data);
+
+const menu =
+  mode === 'weekly'
+    ? generateWeeklyMenu(data, nutrition)
+    : generateMenu(data, nutrition);
+
+const budget = calculateBudget(menu.shoppingList, data.country);
+
+onComplete({
+  data,
+  nutrition,
+  ...menu,
+  budget
+}); 
+    
+ 
 
   const handleBack = () => {
     if (step > 0) {
