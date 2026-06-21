@@ -5,6 +5,8 @@ import HomeScreen from '@/components/HomeScreen';
 import Survey from '@/components/Survey';
 import Results from '@/components/Results';
 import AINutritionist from '@/components/AINutritionist';
+import { generateMenu, generateWeeklyMenu } from '@/lib/menuGenerator';
+import { calculateBudget } from '@/lib/prices';
  
 export default function Home() {
   // Текущий режим: 'home' | 'quick' | 'weekly' | 'ai'
@@ -12,26 +14,38 @@ export default function Home() {
   // Результаты расчёта (если есть)
   const [results, setResults] = useState(null);
  
-  // Полный возврат на главный экран: сбрасываем и результаты, и режим.
+  // Полный возврат на главный экран
   const goHome = () => {
     setResults(null);
     setMode('home');
   };
  
-  // Перезапуск анкеты в текущем режиме: сбрасываем только результаты,
-  // mode остаётся ('quick' или 'weekly'), поэтому ниже снова отрендерится Survey.
-  const restartSurvey = () => {
-    setResults(null);
+  // Пересобрать меню с теми же данными, но с другими блюдами.
+  // Не возвращает в анкету — пользователь остаётся на экране результатов,
+  // но видит новый набор блюд (за счёт случайного сдвига в генераторе).
+  const regenerateMenu = () => {
+    if (!results) return;
+    const userData = results.data;
+    const nutrition = results.nutrition;
+    const menuResult = mode === 'weekly'
+      ? generateWeeklyMenu(userData, nutrition)
+      : generateMenu(userData, nutrition);
+    const budget = calculateBudget(menuResult.shoppingList, userData.country);
+    setResults({
+      data: userData,
+      nutrition,
+      ...menuResult,
+      budget,
+    });
   };
  
-  // Если есть результаты — показываем экран результатов.
-  // Передаём mode явно в props, чтобы Results однозначно знал, что рисовать.
+  // Если есть результаты — показываем экран результатов
   if (results) {
     return (
       <Results
         data={results}
         mode={mode}
-        onReset={restartSurvey}
+        onReset={regenerateMenu}
         onGoHome={goHome}
       />
     );
@@ -50,5 +64,3 @@ export default function Home() {
   // По умолчанию — главный экран
   return <HomeScreen onSelectMode={setMode} />;
 }
-
-
