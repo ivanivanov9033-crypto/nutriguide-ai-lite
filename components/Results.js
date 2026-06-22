@@ -3,8 +3,6 @@
 import { useState } from 'react';
 
 export default function Results({ data, mode, onReset, onGoHome }) {
- 
-
   const [copied, setCopied] = useState(false);
   const { data: input, nutrition, budget } = data;
 
@@ -22,10 +20,14 @@ export default function Results({ data, mode, onReset, onGoHome }) {
     }
   };
 
+  const handlePrint = () => {
+    window.print();
+  };
+
   return (
     <div className="min-h-screen bg-cream">
-      {/* Шапка — кнопка «На главную» */}
-      <header className="border-b border-gray-200 bg-white sticky top-0 z-10">
+      {/* Шапка — кнопка «На главную». На печати скрывается. */}
+      <header className="border-b border-gray-200 bg-white sticky top-0 z-10 print:hidden">
         <div className="max-w-3xl mx-auto px-4 py-4 flex items-center justify-between gap-3">
           <button
             onClick={onGoHome}
@@ -45,7 +47,7 @@ export default function Results({ data, mode, onReset, onGoHome }) {
         </div>
       </header>
 
-      <main className="max-w-3xl mx-auto px-4 py-8 space-y-5 pb-32">
+      <main className="max-w-3xl mx-auto px-4 py-8 space-y-5 pb-32 print:pb-4 print:py-4">
         <div>
           <h1 className="text-3xl sm:text-4xl font-semibold text-gray-900">
             {isWeekly ? 'Ваш план на неделю' : 'Ваш рацион'}
@@ -171,18 +173,24 @@ export default function Results({ data, mode, onReset, onGoHome }) {
         </div>
       </main>
 
-      {/* Sticky кнопки внизу */}
-      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 px-4 py-3 shadow-lg">
+      {/* Sticky кнопки внизу. На печати скрываются. */}
+      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 px-4 py-3 shadow-lg print:hidden">
         <div className="max-w-3xl mx-auto flex flex-col sm:flex-row gap-2">
           <button
             onClick={handleCopy}
-            className="flex-1 px-6 py-3 rounded-xl border-2 border-sage-500 text-sage-700 font-medium hover:bg-sage-50 transition"
+            className="flex-1 px-4 py-3 rounded-xl border-2 border-sage-500 text-sage-700 font-medium hover:bg-sage-50 transition text-sm sm:text-base"
           >
-            {copied ? 'Скопировано' : 'Скопировать результат'}
+            {copied ? 'Скопировано' : 'Скопировать'}
+          </button>
+          <button
+            onClick={handlePrint}
+            className="flex-1 px-4 py-3 rounded-xl border-2 border-sage-500 text-sage-700 font-medium hover:bg-sage-50 transition text-sm sm:text-base"
+          >
+            Скачать PDF
           </button>
           <button
             onClick={onReset}
-            className="flex-1 px-6 py-3 rounded-xl bg-sage-500 hover:bg-sage-600 text-white font-medium transition shadow-sm"
+            className="flex-1 px-4 py-3 rounded-xl bg-sage-500 hover:bg-sage-600 text-white font-medium transition shadow-sm text-sm sm:text-base"
           >
             Сменить рацион
           </button>
@@ -240,7 +248,7 @@ function WeeklyMenuSection({ data }) {
 
       <Card>
         <CardTitle>Меню на 7 дней</CardTitle>
-        <p className="text-sm text-gray-500 mt-1">
+        <p className="text-sm text-gray-500 mt-1 print:hidden">
           Нажмите на день, чтобы раскрыть его меню.
         </p>
         <div className="space-y-2 mt-5">
@@ -266,12 +274,12 @@ function DayAccordion({ day, isOpen, onToggle }) {
   const meals = day.meals || [];
 
   return (
-    <div className="border border-gray-200 rounded-xl overflow-hidden">
+    <div className="border border-gray-200 rounded-xl overflow-hidden print:break-inside-avoid">
       <button
         onClick={onToggle}
         className={`w-full text-left px-4 py-3 flex items-center justify-between gap-3 transition ${
           isOpen ? 'bg-sage-50' : 'bg-white hover:bg-gray-50'
-        }`}
+        } print:bg-white`}
       >
         <div className="flex items-center gap-3 min-w-0">
           <div className="w-9 h-9 rounded-lg bg-sage-500 text-white font-semibold text-sm flex items-center justify-center shrink-0">
@@ -285,20 +293,23 @@ function DayAccordion({ day, isOpen, onToggle }) {
           </div>
         </div>
         <span
-          className={`text-gray-400 transition-transform shrink-0 ${
+          className={`text-gray-400 transition-transform shrink-0 print:hidden ${
             isOpen ? 'rotate-180' : ''
           }`}
         >
           ▾
         </span>
       </button>
-      {isOpen && (
-        <div className="p-4 space-y-3 bg-white border-t border-gray-100">
-          {meals.map((meal, i) => (
-            <MealCard key={i} meal={meal} />
-          ))}
-        </div>
-      )}
+      {/* На экране — показываем только когда раскрыто. На печати — всегда. */}
+      <div
+        className={`p-4 space-y-3 bg-white border-t border-gray-100 ${
+          isOpen ? '' : 'hidden'
+        } print:block`}
+      >
+        {meals.map((meal, i) => (
+          <MealCard key={i} meal={meal} />
+        ))}
+      </div>
     </div>
   );
 }
@@ -307,7 +318,7 @@ function DayAccordion({ day, isOpen, onToggle }) {
 
 function Card({ children }) {
   return (
-    <div className="bg-white rounded-2xl border border-gray-200 p-6 sm:p-7 shadow-sm">
+    <div className="bg-white rounded-2xl border border-gray-200 p-6 sm:p-7 shadow-sm print:break-inside-avoid print:shadow-none print:border-gray-300">
       {children}
     </div>
   );
@@ -358,7 +369,7 @@ function Macro({ label, value }) {
 function MealCard({ meal }) {
   const ingredients = meal.ingredients || [];
   return (
-    <div className="border border-gray-100 rounded-xl p-4">
+    <div className="border border-gray-100 rounded-xl p-4 print:break-inside-avoid">
       <div className="flex items-baseline justify-between gap-2 mb-1">
         <div className="text-xs text-sage-700 font-semibold uppercase tracking-wider">
           {meal.slot}
