@@ -33,10 +33,21 @@ export default function Survey({ mode = 'quick', onComplete, onBack }) {
     budget: '',
     country: '',
     restrictions: '',
+    restrictionFlags: [], // массив идентификаторов выбранных ограничений
   });
 
   const updateField = (field, value) => {
     setData((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const toggleRestrictionFlag = (flag) => {
+    setData((prev) => {
+      const current = prev.restrictionFlags || [];
+      if (current.includes(flag)) {
+        return { ...prev, restrictionFlags: current.filter((f) => f !== flag) };
+      }
+      return { ...prev, restrictionFlags: [...current, flag] };
+    });
   };
 
   const canProceed = () => {
@@ -132,7 +143,14 @@ export default function Survey({ mode = 'quick', onComplete, onBack }) {
           {step === 3 && <ActivityStep value={data.activity} onChange={(v) => updateField('activity', v)} />}
           {step === 4 && <BudgetStep value={data.budget} onChange={(v) => updateField('budget', v)} />}
           {step === 5 && <CountryStep value={data.country} onChange={(v) => updateField('country', v)} />}
-          {step === 6 && <RestrictionsStep value={data.restrictions} onChange={(v) => updateField('restrictions', v)} />}
+          {step === 6 && (
+            <RestrictionsStep
+              text={data.restrictions}
+              flags={data.restrictionFlags || []}
+              onChangeText={(v) => updateField('restrictions', v)}
+              onToggleFlag={toggleRestrictionFlag}
+            />
+          )}
         </div>
 
         <div className="flex justify-between mt-6">
@@ -310,19 +328,77 @@ function CountryStep({ value, onChange }) {
   );
 }
 
-function RestrictionsStep({ value, onChange }) {
+function RestrictionsStep({ text, flags, onChangeText, onToggleFlag }) {
+  const options = [
+    { id: 'no-fish', label: 'Не ем рыбу и морепродукты' },
+    { id: 'no-meat', label: 'Не ем мясо (вегетарианство)' },
+    { id: 'no-nuts', label: 'Аллергия на орехи' },
+    { id: 'no-dairy', label: 'Не переношу лактозу (молочные продукты)' },
+    { id: 'no-eggs', label: 'Не ем яйца' },
+  ];
+
   return (
-    <div>
-      <p className="text-sm text-gray-500 mb-3 leading-relaxed">
-        Укажите аллергии или продукты, которые вы не едите. Этот пункт необязательный — можно пропустить.
-      </p>
-      <textarea
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder="Например: не ем рыбу, аллергия на орехи"
-        className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-sage-500 focus:outline-none focus:ring-2 focus:ring-sage-100 transition min-h-[120px] resize-y"
-      />
+    <div className="space-y-6">
+      <div>
+        <p className="text-sm text-gray-500 mb-3 leading-relaxed">
+          Отметьте, чего вы не едите — мы исключим эти продукты при подборе блюд.
+          Можно ничего не выбирать.
+        </p>
+        <div className="space-y-2">
+          {options.map((opt) => (
+            <CheckboxOption
+              key={opt.id}
+              checked={flags.includes(opt.id)}
+              onClick={() => onToggleFlag(opt.id)}
+              label={opt.label}
+            />
+          ))}
+        </div>
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-1">
+          Дополнительные ограничения (необязательно)
+        </label>
+        <p className="text-xs text-gray-500 mb-2 leading-relaxed">
+          Запишите всё, что не вошло в чекбоксы выше. Эти заметки пока не влияют на подбор блюд —
+          они пригодятся, когда подключим AI Нутрициолога.
+        </p>
+        <textarea
+          value={text}
+          onChange={(e) => onChangeText(e.target.value)}
+          placeholder="Например: не люблю кинзу, не ем грибы"
+          className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-sage-500 focus:outline-none focus:ring-2 focus:ring-sage-100 transition min-h-[80px] resize-y"
+        />
+      </div>
     </div>
+  );
+}
+
+function CheckboxOption({ checked, onClick, label }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`w-full flex items-start gap-3 p-3 rounded-xl border-2 transition text-left ${
+        checked
+          ? 'border-sage-500 bg-sage-50'
+          : 'border-gray-200 bg-white hover:border-gray-300'
+      }`}
+    >
+      <div
+        className={`w-5 h-5 rounded border-2 flex items-center justify-center shrink-0 mt-0.5 transition ${
+          checked ? 'border-sage-500 bg-sage-500' : 'border-gray-300 bg-white'
+        }`}
+      >
+        {checked && (
+          <svg viewBox="0 0 12 12" className="w-3 h-3 text-white" fill="currentColor">
+            <path d="M10.28 2.28 4.5 8.06 1.72 5.28.28 6.72l4.22 4.22 7.22-7.22z" />
+          </svg>
+        )}
+      </div>
+      <span className="text-gray-900 leading-snug">{label}</span>
+    </button>
   );
 }
 
@@ -340,4 +416,3 @@ function OptionCard({ active, onClick, children }) {
     </button>
   );
 }
-
