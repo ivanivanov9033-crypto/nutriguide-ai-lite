@@ -1,28 +1,61 @@
 'use client';
- 
-import { useState } from 'react';
+
+import { useState, useEffect } from 'react';
 import HomeScreen from '@/components/HomeScreen';
 import Survey from '@/components/Survey';
 import Results from '@/components/Results';
 import AINutritionist from '@/components/AINutritionist';
 import { generateMenu, generateWeeklyMenu } from '@/lib/menuGenerator';
 import { calculateBudget } from '@/lib/prices';
- 
+
+const STORAGE_KEY = 'nutriguide-state-v1';
+
 export default function Home() {
   // Текущий режим: 'home' | 'quick' | 'weekly' | 'ai'
   const [mode, setMode] = useState('home');
   // Результаты расчёта (если есть)
   const [results, setResults] = useState(null);
- 
-  // Полный возврат на главный экран
+  // Флаг: загрузка из localStorage завершена.
+  // Нужен, чтобы не сохранять пустое состояние до восстановления.
+  const [hydrated, setHydrated] = useState(false);
+
+  // Загрузка сохранённого состояния при первом монтировании.
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed && parsed.results && parsed.mode) {
+          setMode(parsed.mode);
+          setResults(parsed.results);
+        }
+      }
+    } catch (e) {
+      // localStorage недоступен (incognito) или данные испорчены — игнорируем.
+    }
+    setHydrated(true);
+  }, []);
+
+  // Сохранение состояния при каждом изменении.
+  // Если результат есть — пишем; если нет — удаляем запись.
+  useEffect(() => {
+    if (!hydrated) return;
+    try {
+      if (results) {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify({ mode, results }));
+      } else {
+        localStorage.removeItem(STORAGE_KEY);
+      }
+    } catch (e) {
+      // localStorage переполнен или недоступен — молча игнорируем.
+    }
+  }, [mode, results, hydrated]);
+
   const goHome = () => {
     setResults(null);
     setMode('home');
   };
- 
-  // Пересобрать меню с теми же данными, но с другими блюдами.
-  // Не возвращает в анкету — пользователь остаётся на экране результатов,
-  // но видит новый набор блюд (за счёт случайного сдвига в генераторе).
+
   const regenerateMenu = () => {
     if (!results) return;
     const userData = results.data;
@@ -38,8 +71,13 @@ export default function Home() {
       budget,
     });
   };
- 
-  // Если есть результаты — показываем экран результатов
+
+  // Пока не загрузили данные из localStorage — рендерим пустой экран,
+  // чтобы избежать вспышки «главная → восстановленный результат».
+  if (!hydrated) {
+    return <div className="min-h-screen bg-cream" />;
+  }
+
   if (results) {
     return (
       <Results
@@ -50,17 +88,14 @@ export default function Home() {
       />
     );
   }
- 
-  // Режим AI
+
   if (mode === 'ai') {
     return <AINutritionist onBack={goHome} />;
   }
- 
-  // Режим анкеты (quick или weekly)
+
   if (mode === 'quick' || mode === 'weekly') {
     return <Survey mode={mode} onComplete={setResults} onBack={goHome} />;
   }
- 
-  // По умолчанию — главный экран
+
   return <HomeScreen onSelectMode={setMode} />;
 }
