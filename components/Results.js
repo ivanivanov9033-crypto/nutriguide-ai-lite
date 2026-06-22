@@ -3,17 +3,7 @@
 import { useState } from 'react';
 
 export default function Results({ data, mode, onReset, onGoHome }) {
-  // === DEBUG: одна строка в консоль для проверки, что Results получает.
-  // После того как убедитесь, что mode передаётся корректно, можете её удалить.
-  if (typeof window !== 'undefined') {
-    console.log(
-      '%c[Results] props mode =',
-      'color:#4A7C59;font-weight:bold',
-      mode,
-      '| data keys:',
-      Object.keys(data || {})
-    );
-  }
+ 
 
   const [copied, setCopied] = useState(false);
   const { data: input, nutrition, budget } = data;
