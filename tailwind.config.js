@@ -7,22 +7,37 @@ module.exports = {
   theme: {
     extend: {
       colors: {
+        // Палитра Mint — в духе Apple Health и iOS systemGreen.
+        // Имя токена осталось 'sage' для совместимости с уже написанным кодом —
+        // не нужно править каждый компонент, классы вроде bg-sage-500 автоматически
+        // подхватят новые цвета.
         sage: {
-          50: '#F4F8F4',
-          100: '#E8F0E9',
-          200: '#C9DCCB',
-          300: '#9DBFA1',
-          400: '#6F9B75',
-          500: '#4A7C59',
-          600: '#3A6447',
-          700: '#2F5037',
-          800: '#243D29',
-          900: '#1B2D1F',
+          50:  '#ECFDF3',
+          100: '#D1FADF',
+          200: '#A6F4C5',
+          300: '#6CE9A6',
+          400: '#4ADE80',
+          500: '#34C759', // iOS systemGreen — основной акцент
+          600: '#16A34A', // hover для кнопок
+          700: '#15803D', // тёмный текст и бейджи
+          800: '#166534',
+          900: '#14532D',
         },
-        cream: '#FAFBF9',
+        // Бледно-серый фон в духе apple.com — холоднее тёплого cream.
+        cream: '#F5F5F7',
       },
       fontFamily: {
-        sans: ['Inter', 'system-ui', 'sans-serif'],
+        // На Mac/iOS подхватится SF Pro (системный шрифт Apple).
+        // На Windows/Android — Inter, потом system-ui.
+        sans: [
+          '-apple-system',
+          'BlinkMacSystemFont',
+          '"SF Pro Text"',
+          '"SF Pro Display"',
+          'Inter',
+          'system-ui',
+          'sans-serif',
+        ],
       },
     },
   },
