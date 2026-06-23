@@ -78,7 +78,7 @@ export default function Home() {
     return <div className="min-h-screen bg-cream" />;
   }
 
-  if (results) {
+  if (results && mode !== 'ai') {
     return (
       <Results
         data={results}
@@ -90,7 +90,8 @@ export default function Home() {
   }
 
   if (mode === 'ai') {
-    return <AINutritionist onBack={goHome} />;
+    // Передаём results (если есть) — AI получит контекст вашего плана.
+    return <AINutritionist results={results} onBack={goHome} />;
   }
 
   if (mode === 'quick' || mode === 'weekly') {
