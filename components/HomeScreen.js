@@ -22,9 +22,9 @@ export default function HomeScreen({ onSelectMode }) {
       id: 'ai',
       title: 'AI Нутрициолог',
       desc: 'Диалог с AI-консультантом для нестандартных запросов и индивидуальных корректировок.',
-      time: 'Скоро',
+      time: 'Чат',
       icon: '💬',
-      available: false,
+      available: true,
     },
   ];
 
