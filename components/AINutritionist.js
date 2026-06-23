@@ -34,8 +34,6 @@ export default function AINutritionist({ results, onBack }) {
     if (!text || loading) return;
 
     const userMessage = { role: 'user', content: text };
-    // Только role='user' и role='assistant' идут в Claude API (без приветствия от ассистента,
-    // которое всё равно надо передать, чтобы Claude видел контекст диалога).
     const apiMessages = [...messages, userMessage];
 
     setMessages(apiMessages);
@@ -64,13 +62,11 @@ export default function AINutritionist({ results, onBack }) {
       setError(e.message || 'Не удалось получить ответ. Попробуйте ещё раз.');
     } finally {
       setLoading(false);
-      // Возвращаем фокус в поле ввода
       setTimeout(() => inputRef.current?.focus(), 100);
     }
   };
 
   const handleKeyDown = (e) => {
-    // Enter — отправить, Shift+Enter — перенос строки
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       sendMessage();
@@ -144,6 +140,8 @@ export default function AINutritionist({ results, onBack }) {
   );
 }
 
+// — — — Сообщение с поддержкой простого markdown — — —
+
 function MessageBubble({ role, content }) {
   const isUser = role === 'user';
   return (
@@ -155,12 +153,117 @@ function MessageBubble({ role, content }) {
             : 'bg-white border border-gray-200 text-gray-900 rounded-bl-md'
         }`}
       >
-        <p className="text-sm sm:text-base leading-relaxed whitespace-pre-wrap">
-          {content}
-        </p>
+        <FormattedText text={content} isUser={isUser} />
       </div>
     </div>
   );
+}
+
+// Очень лёгкий markdown-рендерер для ответов AI:
+// - **жирный** → <strong>
+// - строки, начинающиеся с "- " или "* " → элементы списка
+// - пустые строки → разрыв абзаца
+// Намеренно не подключаем внешние библиотеки, чтобы не раздувать бандл.
+function FormattedText({ text, isUser }) {
+  // Разделяем текст на блоки: списки и обычные параграфы
+  const lines = text.split('\n');
+  const blocks = [];
+  let currentList = null;
+  let currentParagraph = [];
+
+  const flushParagraph = () => {
+    if (currentParagraph.length > 0) {
+      blocks.push({ type: 'p', lines: currentParagraph });
+      currentParagraph = [];
+    }
+  };
+  const flushList = () => {
+    if (currentList) {
+      blocks.push({ type: 'ul', items: currentList });
+      currentList = null;
+    }
+  };
+
+  for (const rawLine of lines) {
+    const line = rawLine.trimEnd();
+    // Пустая строка — разрыв
+    if (line.trim() === '') {
+      flushParagraph();
+      flushList();
+      continue;
+    }
+    // Элемент списка
+    const listMatch = line.match(/^\s*[-*]\s+(.*)$/);
+    if (listMatch) {
+      flushParagraph();
+      if (!currentList) currentList = [];
+      currentList.push(listMatch[1]);
+      continue;
+    }
+    // Обычная строка
+    flushList();
+    currentParagraph.push(line);
+  }
+  flushParagraph();
+  flushList();
+
+  return (
+    <div className="text-sm sm:text-base leading-relaxed space-y-2">
+      {blocks.map((block, i) => {
+        if (block.type === 'ul') {
+          return (
+            <ul key={i} className="space-y-1 pl-1">
+              {block.items.map((item, j) => (
+                <li key={j} className="flex gap-2">
+                  <span className="shrink-0">—</span>
+                  <span>{renderInline(item, isUser)}</span>
+                </li>
+              ))}
+            </ul>
+          );
+        }
+        // Параграф: склеиваем строки через перенос, чтобы сохранить структуру
+        return (
+          <p key={i} className="whitespace-pre-wrap">
+            {block.lines.map((ln, j) => (
+              <span key={j}>
+                {renderInline(ln, isUser)}
+                {j < block.lines.length - 1 && '\n'}
+              </span>
+            ))}
+          </p>
+        );
+      })}
+    </div>
+  );
+}
+
+// Превращает **жирный** в <strong>
+function renderInline(text, isUser) {
+  const parts = [];
+  const regex = /\*\*(.+?)\*\*/g;
+  let lastIndex = 0;
+  let match;
+  let key = 0;
+
+  while ((match = regex.exec(text)) !== null) {
+    if (match.index > lastIndex) {
+      parts.push(text.slice(lastIndex, match.index));
+    }
+    parts.push(
+      <strong
+        key={key++}
+        className={isUser ? 'font-semibold' : 'font-semibold text-gray-900'}
+      >
+        {match[1]}
+      </strong>
+    );
+    lastIndex = match.index + match[0].length;
+  }
+  if (lastIndex < text.length) {
+    parts.push(text.slice(lastIndex));
+  }
+  return parts.length > 0 ? parts : text;
 }
 
 function TypingIndicator() {
@@ -190,6 +293,7 @@ function buildSystemPrompt(results) {
 — Кратко и по делу, без воды. Обычно 2–5 предложений.
 — Без эмодзи.
 — Конкретные числа, когда уместно (граммы, ккал).
+— Можешь использовать **двойные звёздочки** для выделения важных слов и тире "—" для списков.
 
 Ограничения:
 — Ты не врач, медицинские диагнозы не ставишь.
@@ -250,6 +354,7 @@ function buildSystemPrompt(results) {
   lines.push('— Кратко и по делу, без воды. Обычно 2–5 предложений.');
   lines.push('— Конкретные числа (граммы, ккал), когда уместно.');
   lines.push('— Без эмодзи.');
+  lines.push('— Можешь использовать **двойные звёздочки** для выделения важных слов и тире "—" для списков.');
   lines.push('');
   lines.push('Ограничения:');
   lines.push('— Ты не врач. Медицинские диагнозы не ставишь, лекарств не назначаешь.');
